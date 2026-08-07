@@ -88,6 +88,17 @@ evita llamadas repetidas a la API.
 > El nombre del usuario queda deliberadamente fuera del prompt y de la clave de caché: si
 > influyera, la misma pregunta hecha por dos personas podría responderse distinto.
 
+**Limitaciones conocidas**, explícitas para no dar una garantía más fuerte de la real:
+
+- La caché vive en memoria del proceso y **no tiene límite de tamaño**. Para este alcance
+  (un documento, uso local) es lo correcto: acotarla con desalojo rompería el determinismo
+  justo para las preguntas desalojadas. En un servicio expuesto habría que revisarlo, ya
+  que la clave proviene de input del usuario.
+- La caché y el índice son **por proceso**. Con un solo worker —el modo por defecto— la
+  garantía se cumple. Levantar `uvicorn --workers N` la rompe: cada worker mantiene su
+  propia caché, y la misma pregunta atendida por dos workers distintos podría devolver
+  textos distintos. Escalar horizontalmente exigiría mover ambos a un almacén compartido.
+
 ### Idioma de la respuesta
 
 El documento está en español, así que el contexto recuperado también lo está. Los modelos
