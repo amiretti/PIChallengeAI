@@ -1,4 +1,4 @@
-from app.application.prompt import SYSTEM_PROMPT, build_user_prompt
+from app.application.prompt import build_system_prompt, build_user_prompt
 from app.domain.models import Answer, Question
 from app.domain.ports import LanguageModel, VectorStore
 
@@ -18,10 +18,14 @@ class AnswerQuestion:
         vector_store: VectorStore,
         language_model: LanguageModel,
         top_k: int = DEFAULT_TOP_K,
+        restrict_to_document: bool = True,
     ) -> None:
         self._vector_store = vector_store
         self._language_model = language_model
         self._top_k = top_k
+        # Built once: the mode is fixed for the process, so the cache below never mixes
+        # answers produced under different rules.
+        self._system_prompt = build_system_prompt(restrict_to_document)
         # Hosted models are not bit-for-bit reproducible even at temperature 0, so this
         # cache is what actually guarantees "same question, same answer". It also spares
         # an API call, which matters under Cohere's trial-key rate limit.
@@ -37,7 +41,9 @@ class AnswerQuestion:
 
         retrieved = self._vector_store.search(question.text, self._top_k)
         user_prompt = build_user_prompt(question.text, retrieved)
-        answer = Answer(text=self._language_model.generate(SYSTEM_PROMPT, user_prompt))
+        answer = Answer(
+            text=self._language_model.generate(self._system_prompt, user_prompt)
+        )
 
         self._answers[cache_key] = answer
         return answer

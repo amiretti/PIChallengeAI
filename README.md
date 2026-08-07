@@ -99,6 +99,47 @@ evita llamadas repetidas a la API.
   propia caché, y la misma pregunta atendida por dos workers distintos podría devolver
   textos distintos. Escalar horizontalmente exigiría mover ambos a un almacén compartido.
 
+### Alcance de las respuestas
+
+El enunciado lista cinco requisitos para la respuesta, y **ninguno dice explícitamente que
+el modelo no pueda usar su propio conocimiento**. Pero está implícito en cómo define el
+ejercicio: *"pasarlo como contexto en el prompt para que el LLM pueda responder **en base a
+ese contexto**"*. Un modelo que contesta de memoria cumpliría los cinco requisitos y aun
+así dejaría de ser RAG: el documento pasaría a ser decorativo.
+
+Por eso el comportamiento por defecto es responder solo desde el documento. La variable
+`RESTRICT_TO_DOCUMENT` permite cambiarlo:
+
+| Valor | Comportamiento |
+|---|---|
+| `true` *(default)* | El modelo responde únicamente con lo que dice el documento. Si no lo cubre, lo dice |
+| `false` | El documento sigue teniendo prioridad, pero si no cubre la pregunta el modelo responde con su propio conocimiento |
+
+Diferencia real, con la misma pregunta:
+
+```
+¿Quién ganó el mundial de fútbol de 2022?
+
+  true  → El documento no menciona el ganador del mundial de fútbol de 2022. 🤷‍♂️🤖⚽
+  false → Argentina ganó el mundial de fútbol de 2022. 🏆⚽🥳
+```
+
+Importante: desactivarlo **no** degrada el sistema a un LLM común. El documento sigue
+teniendo precedencia, así que una pregunta que sí cubre se responde igual en ambos modos:
+
+```
+¿Quién es Zara?
+
+  true  → Zara es un intrépido explorador que descubre un antiguo artefacto... 🌌🚀🔍
+  false → Zara es un intrépido explorador que descubre un antiguo artefacto... 🌌🚀🔍
+```
+
+Los otros cuatro requisitos (una oración, idioma, tercera persona, emojis) se cumplen en
+ambos modos: el flag solo intercambia las dos reglas de anclaje al documento.
+
+> Para la evaluación del challenge conviene dejarlo en `true`, que es el comportamiento
+> que el enunciado describe.
+
 ### Idioma de la respuesta
 
 El documento está en español, así que el contexto recuperado también lo está. Los modelos
@@ -266,6 +307,7 @@ COHERE_API_KEY=tu-api-key-aca
 | `TOP_K` | `1` | Cantidad de fragmentos a recuperar por consulta |
 | `LLM_TEMPERATURE` | `0` | `0` = decodificación determinista (necesaria, pero no suficiente) |
 | `LLM_SEED` | `42` | Semilla del modelo. Reduce la variación, sin eliminarla |
+| `RESTRICT_TO_DOCUMENT` | `true` | Si el modelo puede o no salirse del documento. Ver [Alcance de las respuestas](#alcance-de-las-respuestas) |
 
 ---
 

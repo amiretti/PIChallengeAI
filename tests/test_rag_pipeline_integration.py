@@ -44,7 +44,18 @@ def answer_question(settings):
         settings.llm_temperature,
         settings.llm_seed,
     )
-    return AnswerQuestion(store, model, settings.top_k)
+    return AnswerQuestion(store, model, settings.top_k, settings.restrict_to_document)
+
+
+@pytest.fixture(scope="module")
+def unrestricted_answer_question(settings, answer_question):
+    """Same pipeline, but allowed to fall back to the model's own knowledge."""
+    return AnswerQuestion(
+        answer_question._vector_store,
+        answer_question._language_model,
+        settings.top_k,
+        restrict_to_document=False,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -108,6 +119,47 @@ def test_answers_english_questions_in_english(answer_question, question):
 
     assert ENGLISH_MARKER.search(answer)
     assert not SPANISH_MARKER.search(answer)
+
+
+OFF_DOCUMENT_QUESTION = "¿Quién ganó el mundial de fútbol de 2022?"
+
+
+def test_restricted_mode_refuses_a_question_the_document_does_not_cover(answer_question):
+    answer = answer_question.execute(Question("John Doe", OFF_DOCUMENT_QUESTION)).text
+
+    assert not re.search(r"argentina", answer, re.IGNORECASE)
+
+
+def test_unrestricted_mode_answers_it_from_the_model_knowledge(
+    unrestricted_answer_question,
+):
+    answer = unrestricted_answer_question.execute(
+        Question("John Doe", OFF_DOCUMENT_QUESTION)
+    ).text
+
+    assert re.search(r"argentina", answer, re.IGNORECASE)
+
+
+def test_unrestricted_mode_still_answers_document_questions_from_the_document(
+    unrestricted_answer_question,
+):
+    # Relaxing the rule must not turn the pipeline into a plain LLM: the document is
+    # fiction the model cannot know, so a correct answer can only come from the context.
+    answer = unrestricted_answer_question.execute(
+        Question("John Doe", "¿Quién es Zara?")
+    ).text
+
+    assert "Zara" in answer
+    assert re.search(r"Zenthoria|artefacto|explorador|paz", answer, re.IGNORECASE)
+
+
+def test_unrestricted_mode_keeps_the_answer_requirements(unrestricted_answer_question):
+    answer = unrestricted_answer_question.execute(
+        Question("John Doe", OFF_DOCUMENT_QUESTION)
+    ).text
+
+    assert len(re.findall(r"[.!?…](?:\s|$)", answer)) <= 1
+    assert EMOJI_PATTERN.search(answer)
 
 
 def test_answers_portuguese_questions_in_portuguese(answer_question):

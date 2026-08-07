@@ -13,3 +13,6 @@ class Settings(BaseSettings):
     top_k: int = 1
     llm_temperature: float = 0.0
     llm_seed: int = 42
+    # True (the challenge behaviour): the model answers only from the document. False:
+    # the document still wins, but the model may fall back to its own knowledge.
+    restrict_to_document: bool = True
