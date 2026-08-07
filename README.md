@@ -140,6 +140,37 @@ ambos modos: el flag solo intercambia las dos reglas de anclaje al documento.
 > Para la evaluación del challenge conviene dejarlo en `true`, que es el comportamiento
 > que el enunciado describe.
 
+### Por qué no hay umbral de confianza
+
+Una mejora habitual en RAG es descartar el fragmento recuperado cuando queda demasiado lejos
+de la pregunta: si nada se parece lo suficiente, la pregunta no está en el documento. El dato
+necesario ya se calcula (`RetrievedChunk.distance`), así que se midió antes de implementarlo.
+
+Distancia del mejor fragmento, sobre 8 preguntas del documento y 8 ajenas:
+
+| Señal | Mín. dentro del documento | Máx. fuera del documento | Separación |
+|---|---|---|---|
+| Distancia absoluta | 0.5862 | 0.5649 | **−0.0213** |
+| Margen contra la media | 0.1047 | 0.1188 | **−0.0141** |
+| Margen contra el 2º fragmento | 0.0740 | 0.0757 | **−0.0017** |
+
+Las tres separaciones son **negativas**: las clases se solapan y ningún umbral las distingue.
+El caso más claro:
+
+```
+¿Quién ganó el mundial 2022?   → 0.5649   (fuera del documento)
+What did Emma decide to do?    → 0.5809   (pregunta de ejemplo del enunciado)
+```
+
+La pregunta ajena quedó *más cerca* que una de las preguntas de prueba. Cualquier umbral que
+descarte la primera descarta también la segunda.
+
+La causa es el tamaño del corpus: con 5 fragmentos no hay suficiente estructura para que la
+distancia coseno discrimine, y todos los valores caen en una banda estrecha (0.41–0.72). La
+técnica es válida sobre un corpus grande; sobre este documento, no. Por eso no se implementó,
+y el rechazo de preguntas fuera de alcance queda a cargo de la regla del prompt, que sí
+funciona — como muestra el ejemplo de [Uso de la API](#preguntas-de-ejemplo).
+
 ### Idioma de la respuesta
 
 El documento está en español, así que el contexto recuperado también lo está. Los modelos
