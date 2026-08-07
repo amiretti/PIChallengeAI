@@ -40,6 +40,7 @@ CONSULTA (en cada request HTTP)
 
   POST /  {"user_name": "John Doe", "question": "¿Quién es Zara?"}
       │
+      ├─► Caché         si la pregunta ya se respondió, devolver esa misma respuesta
       ├─► Embedding     convertir la pregunta en un vector
       ├─► Búsqueda      recuperar el fragmento más similar
       ├─► Prompt        reglas + contexto recuperado + pregunta
@@ -55,11 +56,52 @@ Eso evita que invente información que no está en el documento.
 
 | Requisito | Cómo se garantiza |
 |---|---|
-| Misma pregunta → misma respuesta | `temperature = 0` (decodificación determinista) |
+| Misma pregunta → misma respuesta | Caché de respuestas por pregunta (ver [Determinismo](#determinismo)) + `temperature = 0` y `seed` fijo |
 | Una sola oración | Instrucción explícita en el prompt |
-| Mismo idioma que la pregunta | Instrucción en el prompt + embeddings multilingües |
+| Mismo idioma que la pregunta | Instrucción reforzada en el prompt + modelo `command-a` (ver [Idioma](#idioma-de-la-respuesta)) |
 | Emojis que resuman el contenido | Instrucción en el prompt |
 | Siempre en tercera persona | Instrucción en el prompt |
+
+Los cinco requisitos están verificados por tests de integración contra la API real
+(`tests/test_rag_pipeline_integration.py`): son los únicos que pueden probar el
+comportamiento de un LLM.
+
+### Determinismo
+
+`temperature = 0` y un `seed` fijo **no alcanzan**. Las APIs de LLM alojadas no garantizan
+salida reproducible bit a bit: el batching en GPU hace que la misma entrada pueda producir
+salidas levemente distintas. Se verificó experimentalmente con los tres modelos de Cohere
+evaluados — la oración se mantenía, pero los emojis cambiaban entre llamadas idénticas:
+
+```
+Q: ¿Quién es Zara?
+A1: Zara es un explorador intrépido que busca la paz en la galaxia. 🌌🤝🚀
+A2: Zara es un explorador intrépido que busca la paz en la galaxia. 🌟🌌🤝
+```
+
+Por eso el determinismo se resuelve en la aplicación, no en el modelo: `AnswerQuestion`
+cachea la respuesta por pregunta normalizada (sin distinguir mayúsculas ni espaciado). La
+primera vez se consulta al LLM; a partir de ahí, la misma pregunta devuelve exactamente el
+mismo texto. Es una garantía del sistema, no una expectativa sobre el modelo — y además
+evita llamadas repetidas a la API.
+
+> El nombre del usuario queda deliberadamente fuera del prompt y de la clave de caché: si
+> influyera, la misma pregunta hecha por dos personas podría responderse distinto.
+
+### Idioma de la respuesta
+
+El documento está en español, así que el contexto recuperado también lo está. Los modelos
+tienden a responder en el idioma del **contexto** en lugar del de la **pregunta**. Se probaron
+tres redacciones distintas del prompt y las tres fallaron en inglés con `command-r`:
+
+| Modelo | `Who is Zara?` | `Quem são os Dracorians?` |
+|---|---|---|
+| `command-r-08-2024` | ❌ responde en español | ✅ portugués |
+| `command-r-plus-08-2024` | ❌ responde en español | ✅ portugués |
+| `command-a-03-2025` | ✅ inglés | ✅ portugués |
+
+Por eso el modelo por defecto es `command-a-03-2025`. El prompt además repite la regla de
+idioma **después** de la pregunta, donde tiene más peso que en las instrucciones iniciales.
 
 ---
 
@@ -68,7 +110,7 @@ Eso evita que invente información que no está en el documento.
 | Componente | Elección | Motivo |
 |---|---|---|
 | API | FastAPI | Validación con Pydantic, documentación automática, async nativo |
-| LLM | Cohere (`command-*`) | Tier gratuito, buen soporte multilingüe |
+| LLM | Cohere `command-a-03-2025` | Tier gratuito; es el único de los evaluados que respeta el idioma de la pregunta |
 | Embeddings | Cohere `embed-multilingual-v3.0` | El documento está en español y las preguntas pueden llegar en inglés o portugués |
 | Base vectorial | ChromaDB | Embebida, sin servidor, integración nativa con Cohere |
 | Orquestación | Código propio | Sin LangChain — el pipeline es lineal y las abstracciones propias mantienen limpia la arquitectura |
@@ -208,10 +250,11 @@ COHERE_API_KEY=tu-api-key-aca
 |---|---|---|
 | `COHERE_API_KEY` | *(requerida)* | Clave de la API de Cohere |
 | `COHERE_EMBEDDING_MODEL` | `embed-multilingual-v3.0` | Modelo de embeddings. Debe ser multilingüe |
-| `COHERE_CHAT_MODEL` | `command-r-08-2024` | Modelo que redacta la respuesta |
+| `COHERE_CHAT_MODEL` | `command-a-03-2025` | Modelo que redacta la respuesta. Ver [Idioma](#idioma-de-la-respuesta) antes de cambiarlo |
 | `DOCUMENT_PATH` | `data/documento.docx` | Documento que se indexa al arrancar |
 | `TOP_K` | `1` | Cantidad de fragmentos a recuperar por consulta |
-| `LLM_TEMPERATURE` | `0` | `0` = respuestas deterministas (requisito del challenge) |
+| `LLM_TEMPERATURE` | `0` | `0` = decodificación determinista (necesaria, pero no suficiente) |
+| `LLM_SEED` | `42` | Semilla del modelo. Reduce la variación, sin eliminarla |
 
 ---
 
@@ -279,11 +322,27 @@ cambiar de proveedor sin tocar el núcleo y testear sin llamadas de red.
 
 ## Tests
 
-> ⏳ Pendiente.
+```bash
+pip install -r requirements-dev.txt
+```
+
+Los tests están separados en dos grupos:
 
 ```bash
-pytest
+pytest -m "not integration"   # unitarios: rápidos, sin red ni API key
+pytest -m integration         # integración: requieren COHERE_API_KEY y red
+pytest                        # todos
 ```
+
+Los **unitarios** cubren chunking, prompt y casos de uso usando dobles de prueba
+(`tests/fakes.py`) que implementan los puertos del dominio. No tocan la red.
+
+Los de **integración** son los que verifican los requisitos de la respuesta contra la API
+real de Cohere: sin ellos no hay forma de comprobar que el LLM responde en una oración, en
+el idioma correcto, en tercera persona y con emojis.
+
+> ⚠️ El *trial key* de Cohere admite 20 llamadas por minuto. Correr los dos archivos de
+> integración juntos puede superar ese límite; en ese caso, ejecutarlos por separado.
 
 ---
 
@@ -314,8 +373,9 @@ dependencia del proyecto. La alternativa es desactivar el escaneo HTTPS del anti
 - [x] Ambiente virtual y `requirements.txt`
 - [x] Capa de dominio: modelos, puertos y chunking
 - [x] Adaptadores: Cohere, ChromaDB, lectura de `.docx`
-- [ ] Casos de uso y prompt
+- [x] Capa de aplicación: casos de uso y prompt
+- [x] Tests de dominio y aplicación (unitarios + integración)
 - [ ] API FastAPI
-- [ ] Tests
+- [ ] Tests de la API
 - [ ] Dockerfile
 - [ ] Colección de Postman
