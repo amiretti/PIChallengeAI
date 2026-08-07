@@ -16,6 +16,8 @@ from app.infrastructure.docx_loader import DocxDocumentLoader
 
 logger = logging.getLogger(__name__)
 
+# Matches uvicorn's own format, so application and server lines read as one log.
+LOG_FORMAT = "%(levelname)s:     %(message)s"
 UPSTREAM_ERROR_STATUS = 502
 UPSTREAM_ERROR_MESSAGE = "The question could not be answered right now, please retry."
 
@@ -55,6 +57,10 @@ async def handle_rag_error(request: Request, error: Exception) -> JSONResponse:
 
 
 def create_app() -> FastAPI:
+    # uvicorn configures its own loggers but leaves the root logger at WARNING, so without
+    # this the application's INFO messages (the indexing summary) are silently dropped.
+    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
+
     app = FastAPI(
         title="PI Challenge — RAG API",
         description=(

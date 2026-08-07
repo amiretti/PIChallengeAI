@@ -1,0 +1,43 @@
+# Todo lo que no forma parte de la imagen. Reduce el tamaño del contexto de build y,
+# sobre todo, evita que archivos sensibles o innecesarios lleguen al contenedor.
+
+# --- Credenciales ---
+# Crítico: la API key se pasa en tiempo de ejecución, nunca se hornea en la imagen.
+.env
+*.env
+!.env.example
+
+# --- Entorno local de Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Control de versiones y CI ---
+.git/
+.gitignore
+.github/
+
+# --- Desarrollo y documentación ---
+tests/
+docs/
+postman/
+requirements-dev.txt
+pyproject.toml
+README.md
+*.md
+
+# --- Editores y sistema operativo ---
+.vscode/
+.idea/
+.claude/
+Thumbs.db
+.DS_Store
+
+# --- Docker ---
+Dockerfile
+.dockerignore
+docker-compose*.yml
