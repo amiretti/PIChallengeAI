@@ -1,0 +1,8 @@
+# Dependencias solo para desarrollo y testing.
+# No se instalan en producción ni en la imagen Docker.
+#
+# Instalación:  pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+pytest==9.1.1
