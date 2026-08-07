@@ -6,3 +6,5 @@
 -r requirements.txt
 
 pytest==9.1.1
+httpx==0.28.1             # Cliente HTTP que usa el TestClient de FastAPI. Llega como dependencia
+                          # transitiva de cohere, pero los tests dependen de él directamente.

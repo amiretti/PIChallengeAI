@@ -88,6 +88,17 @@ evita llamadas repetidas a la API.
 > El nombre del usuario queda deliberadamente fuera del prompt y de la clave de caché: si
 > influyera, la misma pregunta hecha por dos personas podría responderse distinto.
 
+**Limitaciones conocidas**, explícitas para no dar una garantía más fuerte de la real:
+
+- La caché vive en memoria del proceso y **no tiene límite de tamaño**. Para este alcance
+  (un documento, uso local) es lo correcto: acotarla con desalojo rompería el determinismo
+  justo para las preguntas desalojadas. En un servicio expuesto habría que revisarlo, ya
+  que la clave proviene de input del usuario.
+- La caché y el índice son **por proceso**. Con un solo worker —el modo por defecto— la
+  garantía se cumple. Levantar `uvicorn --workers N` la rompe: cada worker mantiene su
+  propia caché, y la misma pregunta atendida por dos workers distintos podría devolver
+  textos distintos. Escalar horizontalmente exigiría mover ambos a un almacén compartido.
+
 ### Idioma de la respuesta
 
 El documento está en español, así que el contexto recuperado también lo está. Los modelos
@@ -260,20 +271,36 @@ COHERE_API_KEY=tu-api-key-aca
 
 ## Ejecución
 
-> ⏳ Pendiente — se completa cuando la aplicación esté implementada.
+Con el ambiente virtual activado y el `.env` completo:
 
 ```bash
 uvicorn app.api.main:app --reload
 ```
 
-La API quedará disponible en `http://127.0.0.1:8000` y la documentación interactiva en
+La API queda disponible en `http://127.0.0.1:8000` y la documentación interactiva en
 `http://127.0.0.1:8000/docs`.
+
+Al arrancar, la aplicación lee el documento, lo divide en chunks y los indexa en ChromaDB.
+Eso ocurre **una sola vez**, antes de aceptar requests: si el documento no existe o la API
+key es inválida, el servidor falla al iniciar en vez de devolver errores request a request.
+El log lo confirma:
+
+```
+INFO:     Waiting for application startup.
+INFO:     Indexed 5 chunks from data/documento.docx
+INFO:     Application startup complete.
+```
 
 ---
 
 ## Uso de la API
 
-> ⏳ Pendiente — se completa cuando los endpoints estén implementados.
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/` | Responde una pregunta sobre el documento |
+| `GET` | `/health` | Verifica que el servicio está levantado |
+
+### `POST /`
 
 **Request**
 
@@ -284,11 +311,51 @@ La API quedará disponible en `http://127.0.0.1:8000` y la documentación intera
 }
 ```
 
-**Preguntas de ejemplo**
+Ambos campos son obligatorios y no pueden estar vacíos. Los espacios sobrantes se recortan.
 
-- `¿Quién es Zara?` *(español)*
-- `What did Emma decide to do?` *(inglés)*
-- `What is the name of the magical flower?` *(inglés)*
+**Response — `200 OK`**
+
+```json
+{
+  "answer": "Zara es un intrépido explorador que descubre un antiguo artefacto que podría contener la clave para la paz entre los Dracorians y los Lumis. 🌌🚀🔍"
+}
+```
+
+**Ejemplo con `curl`**
+
+```bash
+curl -X POST http://127.0.0.1:8000/ \
+  -H "Content-Type: application/json" \
+  -d '{"user_name": "John Doe", "question": "What did Emma decide to do?"}'
+```
+
+### Preguntas de ejemplo
+
+Respuestas reales del servicio:
+
+| Pregunta | Respuesta |
+|---|---|
+| `¿Quién es Zara?` | Zara es un intrépido explorador que descubre un antiguo artefacto que podría contener la clave para la paz entre los Dracorians y los Lumis. 🌌🚀🔍 |
+| `What did Emma decide to do?` | Emma decided to share her extra day with the village, leaving an indelible mark on the heart of every inhabitant. 🌟🎁💖 |
+| `What is the name of the magical flower?` | The magical flower is called "Luz de Luna." 🌙🌿🌟 |
+| `Quem são os Dracorians?` | Os Dracorians são uma das duas civilizações alienígenas da galáxia de Zenthoria, que estão à beira de uma guerra intergaláctica com os Lumis. 🌌⚔️ |
+
+Ante una pregunta que el documento no cubre, no inventa:
+
+| Pregunta | Respuesta |
+|---|---|
+| `¿Quién ganó el mundial 2022?` | El documento no menciona quién ganó el mundial 2022. 🤷‍♂️🌍⚽ |
+
+### Códigos de error
+
+| Código | Cuándo |
+|---|---|
+| `422` | El request no cumple el contrato: falta un campo, está vacío o tiene el tipo incorrecto |
+| `502` | Falló una dependencia externa (Cohere o ChromaDB) |
+
+Las respuestas `502` devuelven un mensaje genérico. El detalle del error se registra en el
+log del servidor y nunca se envía al cliente: los errores de Cohere incluyen cabeceras de
+la petición y datos de la cuenta.
 
 ---
 
@@ -334,8 +401,9 @@ pytest -m integration         # integración: requieren COHERE_API_KEY y red
 pytest                        # todos
 ```
 
-Los **unitarios** cubren chunking, prompt y casos de uso usando dobles de prueba
-(`tests/fakes.py`) que implementan los puertos del dominio. No tocan la red.
+Los **unitarios** cubren chunking, prompt, casos de uso y endpoints. Usan dobles de prueba
+(`tests/fakes.py`) que implementan los puertos del dominio, y los endpoints se prueban con
+el `TestClient` de FastAPI sobreescribiendo la dependencia del caso de uso. No tocan la red.
 
 Los de **integración** son los que verifican los requisitos de la respuesta contra la API
 real de Cohere: sin ellos no hay forma de comprobar que el LLM responde en una oración, en
@@ -375,7 +443,7 @@ dependencia del proyecto. La alternativa es desactivar el escaneo HTTPS del anti
 - [x] Adaptadores: Cohere, ChromaDB, lectura de `.docx`
 - [x] Capa de aplicación: casos de uso y prompt
 - [x] Tests de dominio y aplicación (unitarios + integración)
-- [ ] API FastAPI
-- [ ] Tests de la API
+- [x] API FastAPI
+- [x] Tests de la API
 - [ ] Dockerfile
 - [ ] Colección de Postman
