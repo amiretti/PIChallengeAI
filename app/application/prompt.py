@@ -2,15 +2,24 @@ from typing import Sequence
 
 from app.domain.models import RetrievedChunk
 
+# The first two rules are what tie the answer to the document, and they are the part the
+# RESTRICT_TO_DOCUMENT setting swaps. Both variants contribute exactly two rules, so the
+# numbering of the shared rules below stays the same in either mode.
+DOCUMENT_ONLY_RULES = """1. Answer using only the facts present in the CONTEXT. Never add outside knowledge.
+2. If the CONTEXT does not contain the answer, state that the document does not cover it."""
+
+DOCUMENT_FIRST_RULES = """1. Prefer the facts present in the CONTEXT: it is the authoritative source, and it
+   overrides anything you believe you know about the subject.
+2. Only if the CONTEXT does not contain the answer, answer from your own knowledge."""
+
 # Every answer requirement of the challenge is stated here as an explicit rule, except
 # determinism, which no prompt can guarantee and AnswerQuestion enforces with a cache.
-SYSTEM_PROMPT = """You answer questions about a document.
+SYSTEM_PROMPT_TEMPLATE = """You answer questions about a document.
 
 You receive a CONTEXT with excerpts of that document and a QUESTION about it.
 Follow every rule below, without exception:
 
-1. Answer using only the facts present in the CONTEXT. Never add outside knowledge.
-2. If the CONTEXT does not contain the answer, state that the document does not cover it.
+{grounding_rules}
 3. Answer with exactly one sentence.
 4. Write the answer in the same language as the QUESTION, even when the CONTEXT
    is written in a different language. Translate the facts if you need to.
@@ -35,6 +44,17 @@ QUESTION:
 {question}
 
 {language_reminder}"""
+
+
+def build_system_prompt(restrict_to_document: bool = True) -> str:
+    """Renders the rules the model must follow.
+
+    With `restrict_to_document` the model may only use the retrieved excerpts, which is
+    the behaviour the challenge asks for. Without it, the excerpts still take precedence
+    but the model may fall back to its own knowledge when the document is silent.
+    """
+    rules = DOCUMENT_ONLY_RULES if restrict_to_document else DOCUMENT_FIRST_RULES
+    return SYSTEM_PROMPT_TEMPLATE.format(grounding_rules=rules)
 
 
 def build_user_prompt(question: str, chunks: Sequence[RetrievedChunk]) -> str:

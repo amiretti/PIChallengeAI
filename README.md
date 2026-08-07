@@ -99,6 +99,78 @@ evita llamadas repetidas a la API.
   propia caché, y la misma pregunta atendida por dos workers distintos podría devolver
   textos distintos. Escalar horizontalmente exigiría mover ambos a un almacén compartido.
 
+### Alcance de las respuestas
+
+El enunciado lista cinco requisitos para la respuesta, y **ninguno dice explícitamente que
+el modelo no pueda usar su propio conocimiento**. Pero está implícito en cómo define el
+ejercicio: *"pasarlo como contexto en el prompt para que el LLM pueda responder **en base a
+ese contexto**"*. Un modelo que contesta de memoria cumpliría los cinco requisitos y aun
+así dejaría de ser RAG: el documento pasaría a ser decorativo.
+
+Por eso el comportamiento por defecto es responder solo desde el documento. La variable
+`RESTRICT_TO_DOCUMENT` permite cambiarlo:
+
+| Valor | Comportamiento |
+|---|---|
+| `true` *(default)* | El modelo responde únicamente con lo que dice el documento. Si no lo cubre, lo dice |
+| `false` | El documento sigue teniendo prioridad, pero si no cubre la pregunta el modelo responde con su propio conocimiento |
+
+Diferencia real, con la misma pregunta:
+
+```
+¿Quién ganó el mundial de fútbol de 2022?
+
+  true  → El documento no menciona el ganador del mundial de fútbol de 2022. 🤷‍♂️🤖⚽
+  false → Argentina ganó el mundial de fútbol de 2022. 🏆⚽🥳
+```
+
+Importante: desactivarlo **no** degrada el sistema a un LLM común. El documento sigue
+teniendo precedencia, así que una pregunta que sí cubre se responde igual en ambos modos:
+
+```
+¿Quién es Zara?
+
+  true  → Zara es un intrépido explorador que descubre un antiguo artefacto... 🌌🚀🔍
+  false → Zara es un intrépido explorador que descubre un antiguo artefacto... 🌌🚀🔍
+```
+
+Los otros cuatro requisitos (una oración, idioma, tercera persona, emojis) se cumplen en
+ambos modos: el flag solo intercambia las dos reglas de anclaje al documento.
+
+> Para la evaluación del challenge conviene dejarlo en `true`, que es el comportamiento
+> que el enunciado describe.
+
+### Por qué no hay umbral de confianza
+
+Una mejora habitual en RAG es descartar el fragmento recuperado cuando queda demasiado lejos
+de la pregunta: si nada se parece lo suficiente, la pregunta no está en el documento. El dato
+necesario ya se calcula (`RetrievedChunk.distance`), así que se midió antes de implementarlo.
+
+Distancia del mejor fragmento, sobre 8 preguntas del documento y 8 ajenas:
+
+| Señal | Mín. dentro del documento | Máx. fuera del documento | Separación |
+|---|---|---|---|
+| Distancia absoluta | 0.5862 | 0.5649 | **−0.0213** |
+| Margen contra la media | 0.1047 | 0.1188 | **−0.0141** |
+| Margen contra el 2º fragmento | 0.0740 | 0.0757 | **−0.0017** |
+
+Las tres separaciones son **negativas**: las clases se solapan y ningún umbral las distingue.
+El caso más claro:
+
+```
+¿Quién ganó el mundial 2022?   → 0.5649   (fuera del documento)
+What did Emma decide to do?    → 0.5809   (pregunta de ejemplo del enunciado)
+```
+
+La pregunta ajena quedó *más cerca* que una de las preguntas de prueba. Cualquier umbral que
+descarte la primera descarta también la segunda.
+
+La causa es el tamaño del corpus: con 5 fragmentos no hay suficiente estructura para que la
+distancia coseno discrimine, y todos los valores caen en una banda estrecha (0.41–0.72). La
+técnica es válida sobre un corpus grande; sobre este documento, no. Por eso no se implementó,
+y el rechazo de preguntas fuera de alcance queda a cargo de la regla del prompt, que sí
+funciona — como muestra el ejemplo de [Uso de la API](#preguntas-de-ejemplo).
+
 ### Idioma de la respuesta
 
 El documento está en español, así que el contexto recuperado también lo está. Los modelos
@@ -266,6 +338,7 @@ COHERE_API_KEY=tu-api-key-aca
 | `TOP_K` | `1` | Cantidad de fragmentos a recuperar por consulta |
 | `LLM_TEMPERATURE` | `0` | `0` = decodificación determinista (necesaria, pero no suficiente) |
 | `LLM_SEED` | `42` | Semilla del modelo. Reduce la variación, sin eliminarla |
+| `RESTRICT_TO_DOCUMENT` | `true` | Si el modelo puede o no salirse del documento. Ver [Alcance de las respuestas](#alcance-de-las-respuestas) |
 
 ---
 
