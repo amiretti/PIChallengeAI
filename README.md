@@ -4,9 +4,6 @@ API REST que responde preguntas sobre un documento usando **RAG** (*Retrieval Au
 Generation*): recupera de una base vectorial el fragmento más relevante del documento y se
 lo pasa como contexto a un LLM para que redacte la respuesta.
 
-> **Estado:** completo, incluidos los puntos opcionales (Dockerfile y colección de
-> Postman). Ver [Estado del proyecto](#estado-del-proyecto).
-
 ---
 
 ## Índice
@@ -22,7 +19,7 @@ lo pasa como contexto a un LLM para que redacte la respuesta.
 - [Colección de Postman](#colección-de-postman)
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Tests](#tests)
-- [Estado del proyecto](#estado-del-proyecto)
+- [Solución de problemas](#solución-de-problemas)
 
 ---
 
@@ -577,19 +574,3 @@ docker run --rm -p 8000:8000 --env-file .env \
 En un entorno sin interceptación TLS nada de esto hace falta: el `build` y el `run` de la
 sección [Ejecución con Docker](#ejecución-con-docker) funcionan tal cual. La alternativa,
 como en el caso local, es desactivar el escaneo HTTPS del antivirus.
-
----
-
-## Estado del proyecto
-
-- [x] Estructura del proyecto (clean architecture)
-- [x] Configuración de entorno (`.env.example`, `.gitignore`)
-- [x] Ambiente virtual y `requirements.txt`
-- [x] Capa de dominio: modelos, puertos y chunking
-- [x] Adaptadores: Cohere, ChromaDB, lectura de `.docx`
-- [x] Capa de aplicación: casos de uso y prompt
-- [x] Tests de dominio y aplicación (unitarios + integración)
-- [x] API FastAPI
-- [x] Tests de la API
-- [x] Dockerfile
-- [x] Colección de Postman
