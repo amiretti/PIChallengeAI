@@ -483,7 +483,7 @@ En `postman/` hay una colección lista para importar, con la API corriendo en
 
 | Archivo | Contenido |
 |---|---|
-| `PI-Challenge-RAG-API.postman_collection.json` | Los 10 requests con sus tests |
+| `PI-Challenge-RAG-API.postman_collection.json` | Los 12 requests con sus tests |
 | `PI-Challenge-local.postman_environment.json` | Variable `baseUrl` apuntando al entorno local |
 
 **Importar:** en Postman, *Import* → seleccionar ambos archivos → elegir el environment
@@ -495,7 +495,7 @@ enunciado, no únicamente el código de estado.
 | Carpeta | Qué comprueba |
 |---|---|
 | **Health check** | El servicio está levantado |
-| **Preguntas del challenge** | Las tres preguntas de ejemplo más una en portugués. Cada una valida que la respuesta sea una sola oración, con emojis, en tercera persona y **en el idioma de la pregunta** |
+| **Preguntas del challenge** | Las tres preguntas de ejemplo, una en portugués, y dos adicionales sobre otras partes del documento. Cada una valida que la respuesta sea una sola oración, con emojis, en tercera persona y **en el idioma de la pregunta** |
 | **Requisitos de la respuesta** | Determinismo (repite la pregunta con otro usuario y compara texto exacto) y que no invente ante una pregunta fuera del documento |
 | **Validación del request** | Los tres casos que deben rechazarse con `422` |
 
@@ -516,9 +516,14 @@ npx newman run postman/PI-Challenge-RAG-API.postman_collection.json \
 Salida de una corrida real contra el servicio:
 
 ```
-requests      10    0 failed
-assertions    36    0 failed
+requests      12    0 failed
+assertions    48    0 failed
 ```
+
+> Los tests de la carpeta «Requisitos de la respuesta» asumen
+> `RESTRICT_TO_DOCUMENT=true`, que es el default. Con la variable en `false` el modelo
+> puede responder desde su conocimiento y esos dos tests fallan: no es un error, es la
+> configuración. El log de arranque indica en qué modo está corriendo.
 
 > El `--timeout-request` amplio es necesario porque una pregunta nueva implica dos llamadas
 > a Cohere (embedding + generación) y puede tardar más que el default de Postman. Una
