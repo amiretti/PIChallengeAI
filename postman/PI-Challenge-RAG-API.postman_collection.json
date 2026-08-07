@@ -50,7 +50,7 @@
     },
     {
       "name": "Preguntas del challenge",
-      "description": "Las preguntas de ejemplo del enunciado, más una en portugués para cubrir el tercer idioma.",
+      "description": "Las tres preguntas de ejemplo del enunciado, una en portugués para cubrir el tercer idioma, y dos adicionales que cubren otras partes del documento. El enunciado avisa que en la devolución pueden hacerse preguntas extra, así que conviene tener verificado que funcionan.",
       "item": [
         {
           "name": "¿Quién es Zara? (español)",
@@ -265,6 +265,117 @@
               "path": [""]
             }
           }
+        },
+        {
+          "name": "¿A quién se le regala un día extra? (español)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var answer = pm.response.json().answer;",
+                  "",
+                  "// El documento dice que el reloj se lo regala a «la persona más desafortunada»,",
+                  "// que es Emma. Cualquiera de las dos formas identifica bien al destinatario.",
+                  "pm.test('Identifica a quién se le regala el día', function () {",
+                  "    pm.expect(answer).to.match(/desafortunad|Emma/i);",
+                  "});",
+                  "",
+                  "pm.test('Es una sola oración', function () {",
+                  "    var terminators = answer.match(/[.!?\\u2026](\\s|$)/g) || [];",
+                  "    pm.expect(terminators.length).to.be.at.most(1);",
+                  "});",
+                  "",
+                  "pm.test('Incluye emojis', function () {",
+                  "    pm.expect(answer).to.match(/\\p{Extended_Pictographic}/u);",
+                  "});",
+                  "",
+                  "pm.test('Responde en español, el idioma de la pregunta', function () {",
+                  "    pm.expect(answer).to.match(/\\b(es|una|un|que|los|las|del|se)\\b/i);",
+                  "});",
+                  "",
+                  "pm.test('Responde en tercera persona', function () {",
+                  "    pm.expect(answer).to.not.match(/\\b(yo|mi|m\\u00ed|t\\u00fa|usted|nosotros)\\b/i);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"John Doe\",\n    \"question\": \"¿A quién se le regala un día extra?\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "Where does Zara live? (inglés)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var answer = pm.response.json().answer;",
+                  "",
+                  "pm.test('Nombra la galaxia del documento', function () {",
+                  "    pm.expect(answer).to.match(/Zenthoria/i);",
+                  "});",
+                  "",
+                  "pm.test('Es una sola oración', function () {",
+                  "    var terminators = answer.match(/[.!?\\u2026](\\s|$)/g) || [];",
+                  "    pm.expect(terminators.length).to.be.at.most(1);",
+                  "});",
+                  "",
+                  "pm.test('Incluye emojis', function () {",
+                  "    pm.expect(answer).to.match(/\\p{Extended_Pictographic}/u);",
+                  "});",
+                  "",
+                  "// El fragmento recuperado está en español: el modelo debe seguir el idioma",
+                  "// de la pregunta y traducir los hechos.",
+                  "pm.test('Responde en inglés, aunque el documento está en español', function () {",
+                  "    pm.expect(answer).to.match(/\\b(lives|in|the|is)\\b/i);",
+                  "    pm.expect(answer).to.not.match(/\\b(es|una|que|los|las|del|se)\\b/i);",
+                  "});",
+                  "",
+                  "pm.test('Responde en tercera persona', function () {",
+                  "    pm.expect(answer).to.not.match(/\\b(I|me|my|we|our)\\b/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"John Doe\",\n    \"question\": \"Where does Zara live?\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
         }
       ]
     },
@@ -325,14 +436,20 @@
                   "",
                   "var answer = pm.response.json().answer;",
                   "",
+                  "// Este test asume RESTRICT_TO_DOCUMENT=true, que es el default y el",
+                  "// comportamiento que describe el enunciado. Con la variable en false el",
+                  "// modelo puede responder desde su conocimiento y estos dos tests fallan:",
+                  "// eso no es un bug, es la configuración. Al arrancar, el log lo indica.",
+                  "var config = 'revisar RESTRICT_TO_DOCUMENT en el .env: debe ser true';",
+                  "",
                   "// El modelo sabe quién ganó el mundial 2022. Si contesta «Argentina»,",
                   "// está respondiendo con conocimiento propio en vez de con el documento.",
                   "pm.test('No responde con conocimiento propio del modelo', function () {",
-                  "    pm.expect(answer).to.not.match(/argentina/i);",
+                  "    pm.expect(answer, config).to.not.match(/argentina/i);",
                   "});",
                   "",
                   "pm.test('Indica que el documento no cubre la pregunta', function () {",
-                  "    pm.expect(answer).to.match(/\\bno\\b/i);",
+                  "    pm.expect(answer, config).to.match(/\\bno\\b/i);",
                   "});",
                   "",
                   "pm.test('Sigue respetando el formato de una sola oración', function () {",
