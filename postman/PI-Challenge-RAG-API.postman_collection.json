@@ -1,0 +1,471 @@
+{
+  "info": {
+    "_postman_id": "b7c3f1d2-4a5e-4c8b-9f10-2e6d3a8c5b41",
+    "name": "PI Challenge — RAG API",
+    "description": "Colección para probar la API del challenge.\n\nCada request incluye tests que verifican no solo el código de estado, sino los requisitos de la respuesta definidos en el enunciado: una sola oración, mismo idioma que la pregunta, tercera persona, emojis y determinismo.\n\n**Antes de ejecutar:** levantar la API con `uvicorn app.api.main:app` o con Docker. La variable `baseUrl` apunta a `http://127.0.0.1:8000`.\n\n**Orden:** ejecutar la colección completa (Run collection). El test de determinismo compara contra la respuesta guardada por el request «¿Quién es Zara?», así que depende de que ese se haya ejecutado antes.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "zaraAnswer",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('El servicio reporta estado ok', function () {",
+              "    pm.expect(pm.response.json().status).to.eql('ok');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        },
+        "description": "Verifica que el servicio está levantado y terminó de indexar el documento."
+      }
+    },
+    {
+      "name": "Preguntas del challenge",
+      "description": "Las preguntas de ejemplo del enunciado, más una en portugués para cubrir el tercer idioma.",
+      "item": [
+        {
+          "name": "¿Quién es Zara? (español)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var answer = pm.response.json().answer;",
+                  "",
+                  "pm.test('Devuelve una respuesta no vacía', function () {",
+                  "    pm.expect(answer).to.be.a('string').and.to.have.length.above(0);",
+                  "});",
+                  "",
+                  "pm.test('La respuesta habla de Zara', function () {",
+                  "    pm.expect(answer).to.include('Zara');",
+                  "});",
+                  "",
+                  "pm.test('Es una sola oración', function () {",
+                  "    var terminators = answer.match(/[.!?\\u2026](\\s|$)/g) || [];",
+                  "    pm.expect(terminators.length).to.be.at.most(1);",
+                  "});",
+                  "",
+                  "pm.test('Incluye emojis', function () {",
+                  "    pm.expect(answer).to.match(/\\p{Extended_Pictographic}/u);",
+                  "});",
+                  "",
+                  "pm.test('Responde en español, el idioma de la pregunta', function () {",
+                  "    pm.expect(answer).to.match(/\\b(es|una|un|que|los|las|del)\\b/i);",
+                  "});",
+                  "",
+                  "pm.test('Responde en tercera persona', function () {",
+                  "    pm.expect(answer).to.not.match(/\\b(yo|mi|m\\u00ed|t\\u00fa|usted|nosotros)\\b/i);",
+                  "});",
+                  "",
+                  "// Guardado para el test de determinismo, que compara contra esta respuesta.",
+                  "pm.collectionVariables.set('zaraAnswer', answer);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"John Doe\",\n    \"question\": \"¿Quién es Zara?\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "What did Emma decide to do? (inglés)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var answer = pm.response.json().answer;",
+                  "",
+                  "pm.test('La respuesta habla de Emma', function () {",
+                  "    pm.expect(answer).to.include('Emma');",
+                  "});",
+                  "",
+                  "pm.test('Es una sola oración', function () {",
+                  "    var terminators = answer.match(/[.!?\\u2026](\\s|$)/g) || [];",
+                  "    pm.expect(terminators.length).to.be.at.most(1);",
+                  "});",
+                  "",
+                  "pm.test('Incluye emojis', function () {",
+                  "    pm.expect(answer).to.match(/\\p{Extended_Pictographic}/u);",
+                  "});",
+                  "",
+                  "// El documento está en español: el modelo debe seguir el idioma de la",
+                  "// pregunta, no el del contexto recuperado.",
+                  "pm.test('Responde en inglés, aunque el documento está en español', function () {",
+                  "    pm.expect(answer).to.match(/\\b(the|is|was|decided|to)\\b/i);",
+                  "    pm.expect(answer).to.not.match(/\\b(es|una|que|los|las|del|se)\\b/i);",
+                  "});",
+                  "",
+                  "pm.test('Responde en tercera persona', function () {",
+                  "    pm.expect(answer).to.not.match(/\\b(I|me|my|we|our)\\b/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"John Doe\",\n    \"question\": \"What did Emma decide to do?\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "What is the name of the magical flower? (inglés)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var answer = pm.response.json().answer;",
+                  "",
+                  "pm.test('Nombra la flor mágica del documento', function () {",
+                  "    pm.expect(answer).to.include('Luz de Luna');",
+                  "});",
+                  "",
+                  "pm.test('Es una sola oración', function () {",
+                  "    var terminators = answer.match(/[.!?\\u2026](\\s|$)/g) || [];",
+                  "    pm.expect(terminators.length).to.be.at.most(1);",
+                  "});",
+                  "",
+                  "pm.test('Incluye emojis', function () {",
+                  "    pm.expect(answer).to.match(/\\p{Extended_Pictographic}/u);",
+                  "});",
+                  "",
+                  "pm.test('Responde en inglés, el idioma de la pregunta', function () {",
+                  "    pm.expect(answer).to.match(/\\b(the|is|called|named)\\b/i);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"John Doe\",\n    \"question\": \"What is the name of the magical flower?\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "Quem são os Dracorians? (portugués)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var answer = pm.response.json().answer;",
+                  "",
+                  "pm.test('La respuesta habla de los Dracorians', function () {",
+                  "    pm.expect(answer).to.include('Dracorians');",
+                  "});",
+                  "",
+                  "pm.test('Es una sola oración', function () {",
+                  "    var terminators = answer.match(/[.!?\\u2026](\\s|$)/g) || [];",
+                  "    pm.expect(terminators.length).to.be.at.most(1);",
+                  "});",
+                  "",
+                  "pm.test('Incluye emojis', function () {",
+                  "    pm.expect(answer).to.match(/\\p{Extended_Pictographic}/u);",
+                  "});",
+                  "",
+                  "pm.test('Responde en portugués, el idioma de la pregunta', function () {",
+                  "    pm.expect(answer).to.match(/\\b(s\\u00e3o|uma|dos|na|que)\\b/i);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"John Doe\",\n    \"question\": \"Quem são os Dracorians?\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Requisitos de la respuesta",
+      "description": "Comprobaciones de los requisitos que no se ven en una sola respuesta aislada.",
+      "item": [
+        {
+          "name": "Determinismo — misma pregunta, otro usuario",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// El requisito es que la misma pregunta se responda siempre exactamente",
+                  "// igual. Se repite con otro user_name para comprobar además que el nombre",
+                  "// del usuario no influye en la respuesta.",
+                  "pm.test('Devuelve exactamente la misma respuesta que la primera vez', function () {",
+                  "    var first = pm.collectionVariables.get('zaraAnswer');",
+                  "    pm.expect(first, 'Ejecutar antes el request «¿Quién es Zara?»').to.be.a('string').and.to.have.length.above(0);",
+                  "    pm.expect(pm.response.json().answer).to.eql(first);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"Jane Roe\",\n    \"question\": \"¿Quién es Zara?\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "Pregunta fuera del documento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Responde 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var answer = pm.response.json().answer;",
+                  "",
+                  "// El modelo sabe quién ganó el mundial 2022. Si contesta «Argentina»,",
+                  "// está respondiendo con conocimiento propio en vez de con el documento.",
+                  "pm.test('No responde con conocimiento propio del modelo', function () {",
+                  "    pm.expect(answer).to.not.match(/argentina/i);",
+                  "});",
+                  "",
+                  "pm.test('Indica que el documento no cubre la pregunta', function () {",
+                  "    pm.expect(answer).to.match(/\\bno\\b/i);",
+                  "});",
+                  "",
+                  "pm.test('Sigue respetando el formato de una sola oración', function () {",
+                  "    var terminators = answer.match(/[.!?\\u2026](\\s|$)/g) || [];",
+                  "    pm.expect(terminators.length).to.be.at.most(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"John Doe\",\n    \"question\": \"¿Quién ganó el mundial 2022?\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validación del request",
+      "description": "El contrato del endpoint: qué requests se rechazan y con qué código.",
+      "item": [
+        {
+          "name": "Pregunta vacía → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Rechaza el request con 422', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "",
+                  "pm.test('El error señala el campo question', function () {",
+                  "    var detail = pm.response.json().detail;",
+                  "    pm.expect(JSON.stringify(detail)).to.include('question');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"John Doe\",\n    \"question\": \"   \"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "Falta un campo obligatorio → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Rechaza el request con 422', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "",
+                  "pm.test('El error indica que falta el campo question', function () {",
+                  "    var detail = JSON.stringify(pm.response.json().detail);",
+                  "    pm.expect(detail).to.include('question');",
+                  "    pm.expect(detail).to.include('missing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"John Doe\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "Tipo de dato incorrecto → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Rechaza el request con 422', function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_name\": \"John Doe\",\n    \"question\": 42\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

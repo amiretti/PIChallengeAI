@@ -4,7 +4,8 @@ API REST que responde preguntas sobre un documento usando **RAG** (*Retrieval Au
 Generation*): recupera de una base vectorial el fragmento más relevante del documento y se
 lo pasa como contexto a un LLM para que redacte la respuesta.
 
-> **Estado:** en desarrollo. Ver [Estado del proyecto](#estado-del-proyecto).
+> **Estado:** completo, incluidos los puntos opcionales (Dockerfile y colección de
+> Postman). Ver [Estado del proyecto](#estado-del-proyecto).
 
 ---
 
@@ -18,6 +19,7 @@ lo pasa como contexto a un LLM para que redacte la respuesta.
 - [Ejecución](#ejecución)
 - [Ejecución con Docker](#ejecución-con-docker)
 - [Uso de la API](#uso-de-la-api)
+- [Colección de Postman](#colección-de-postman)
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Tests](#tests)
 - [Estado del proyecto](#estado-del-proyecto)
@@ -404,6 +406,56 @@ la petición y datos de la cuenta.
 
 ---
 
+## Colección de Postman
+
+En `postman/` hay una colección lista para importar, con la API corriendo en
+`http://127.0.0.1:8000`:
+
+| Archivo | Contenido |
+|---|---|
+| `PI-Challenge-RAG-API.postman_collection.json` | Los 10 requests con sus tests |
+| `PI-Challenge-local.postman_environment.json` | Variable `baseUrl` apuntando al entorno local |
+
+**Importar:** en Postman, *Import* → seleccionar ambos archivos → elegir el environment
+«PI Challenge — local» en el selector de arriba a la derecha.
+
+No es solo una lista de requests: cada uno lleva tests que verifican los requisitos del
+enunciado, no únicamente el código de estado.
+
+| Carpeta | Qué comprueba |
+|---|---|
+| **Health check** | El servicio está levantado |
+| **Preguntas del challenge** | Las tres preguntas de ejemplo más una en portugués. Cada una valida que la respuesta sea una sola oración, con emojis, en tercera persona y **en el idioma de la pregunta** |
+| **Requisitos de la respuesta** | Determinismo (repite la pregunta con otro usuario y compara texto exacto) y que no invente ante una pregunta fuera del documento |
+| **Validación del request** | Los tres casos que deben rechazarse con `422` |
+
+> Conviene ejecutar la colección completa (*Run collection*) en vez de requests sueltos: el
+> test de determinismo compara contra la respuesta que guardó el request «¿Quién es Zara?».
+
+### Ejecución por línea de comandos
+
+La colección también corre sin la interfaz de Postman, con
+[newman](https://github.com/postmanlabs/newman):
+
+```bash
+npx newman run postman/PI-Challenge-RAG-API.postman_collection.json \
+  -e postman/PI-Challenge-local.postman_environment.json \
+  --timeout-request 90000
+```
+
+Salida de una corrida real contra el servicio:
+
+```
+requests      10    0 failed
+assertions    36    0 failed
+```
+
+> El `--timeout-request` amplio es necesario porque una pregunta nueva implica dos llamadas
+> a Cohere (embedding + generación) y puede tardar más que el default de Postman. Una
+> pregunta ya respondida vuelve de la caché en milisegundos.
+
+---
+
 ## Estructura del proyecto
 
 ```
@@ -540,4 +592,4 @@ como en el caso local, es desactivar el escaneo HTTPS del antivirus.
 - [x] API FastAPI
 - [x] Tests de la API
 - [x] Dockerfile
-- [ ] Colección de Postman
+- [x] Colección de Postman
