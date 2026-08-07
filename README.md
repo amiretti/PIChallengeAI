@@ -287,13 +287,33 @@ pytest
 
 ---
 
+## Solución de problemas
+
+### `CERTIFICATE_VERIFY_FAILED` al llamar a Cohere
+
+Algunos antivirus (Avast, Kaspersky, ESET) y proxies corporativos interceptan el tráfico
+HTTPS y lo re-firman con una CA propia. Esa CA se instala en el almacén de certificados del
+sistema operativo — por eso los navegadores funcionan — pero Python usa su propio bundle
+(`certifi`) y rechaza la conexión.
+
+Para que Python confíe también en el almacén del sistema:
+
+```bash
+pip install pip-system-certs
+```
+
+No está en `requirements.txt` porque es una particularidad del entorno local, no una
+dependencia del proyecto. La alternativa es desactivar el escaneo HTTPS del antivirus.
+
+---
+
 ## Estado del proyecto
 
 - [x] Estructura del proyecto (clean architecture)
 - [x] Configuración de entorno (`.env.example`, `.gitignore`)
 - [x] Ambiente virtual y `requirements.txt`
-- [ ] Capa de dominio: modelos, puertos y chunking
-- [ ] Adaptadores: Cohere, ChromaDB, lectura de `.docx`
+- [x] Capa de dominio: modelos, puertos y chunking
+- [x] Adaptadores: Cohere, ChromaDB, lectura de `.docx`
 - [ ] Casos de uso y prompt
 - [ ] API FastAPI
 - [ ] Tests

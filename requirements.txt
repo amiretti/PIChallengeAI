@@ -14,6 +14,7 @@ cohere==7.0.8             # SDK oficial de Cohere (chat + embeddings)
 
 # --- Base de datos vectorial ---
 chromadb==1.5.9           # VectorDB embebida, con integración nativa de Cohere
+pillow==12.3.0            # Requerido por CohereEmbeddingFunction de Chroma
 
 # --- Lectura del documento fuente ---
 python-docx==1.2.0        # Parseo de .docx preservando la división en párrafos

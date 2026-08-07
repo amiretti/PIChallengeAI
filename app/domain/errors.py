@@ -8,3 +8,11 @@ class DocumentNotFound(RagError):
 
 class DocumentReadError(RagError):
     pass
+
+
+class VectorStoreError(RagError):
+    pass
+
+
+class LanguageModelError(RagError):
+    pass
