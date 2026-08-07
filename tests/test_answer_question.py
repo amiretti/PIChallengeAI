@@ -1,5 +1,5 @@
 from app.application.answer_question import AnswerQuestion
-from app.application.prompt import SYSTEM_PROMPT
+from app.application.prompt import build_system_prompt
 from app.domain.models import Answer, Chunk, Question, RetrievedChunk
 from tests.fakes import FakeLanguageModel, FakeVectorStore
 
@@ -34,9 +34,29 @@ def test_passes_the_retrieved_context_and_the_question_to_the_language_model():
     AnswerQuestion(store, model).execute(Question("John Doe", "¿Quién es Zara?"))
 
     system_prompt, user_prompt = model.calls[0]
-    assert system_prompt == SYSTEM_PROMPT
+    assert system_prompt == build_system_prompt(restrict_to_document=True)
     assert "Zara es una exploradora." in user_prompt
     assert "¿Quién es Zara?" in user_prompt
+
+
+def test_restricts_answers_to_the_document_by_default():
+    model = FakeLanguageModel()
+
+    AnswerQuestion(FakeVectorStore([retrieved("Zara.")]), model).execute(
+        Question("John Doe", "¿Quién es Zara?")
+    )
+
+    assert model.calls[0][0] == build_system_prompt(restrict_to_document=True)
+
+
+def test_uses_the_unrestricted_prompt_when_configured():
+    model = FakeLanguageModel()
+
+    AnswerQuestion(
+        FakeVectorStore([retrieved("Zara.")]), model, restrict_to_document=False
+    ).execute(Question("John Doe", "¿Quién ganó el mundial 2022?"))
+
+    assert model.calls[0][0] == build_system_prompt(restrict_to_document=False)
 
 
 def test_does_not_leak_the_user_name_into_the_prompt():

@@ -42,7 +42,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.llm_seed,
     )
     app.state.answer_question = AnswerQuestion(
-        vector_store, language_model, settings.top_k
+        vector_store,
+        language_model,
+        settings.top_k,
+        settings.restrict_to_document,
+    )
+    logger.info(
+        "Answers restricted to the document: %s", settings.restrict_to_document
     )
     yield
 
