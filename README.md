@@ -1,3 +1,17 @@
+<p align="center">
+  <a href="https://www.piconsulting.com.ar/">
+    <picture>
+      <source
+        media="(prefers-color-scheme: dark)"
+        srcset="https://www.piconsulting.com.ar/pi-consulting-logo-dark.png">
+      <img
+        src="https://www.piconsulting.com.ar/pi-consulting-logo.png"
+        alt="PI Consulting"
+        width="260">
+    </picture>
+  </a>
+</p>
+
 # PI Challenge — RAG con LLMs
 
 API REST que responde preguntas sobre un documento usando **RAG** (*Retrieval Augmented
