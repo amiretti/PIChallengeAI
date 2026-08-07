@@ -1,0 +1,39 @@
+# === Secretos — NUNCA versionar ===
+.env
+.env.local
+*.key
+
+# === Ambiente virtual ===
+.venv/
+venv/
+env/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+build/
+dist/
+
+# === Persistencia de ChromaDB ===
+.chroma/
+chroma_db/
+
+# === Testing ===
+.pytest_cache/
+.coverage
+htmlcov/
+
+# === Editores / SO ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Notebooks ===
+.ipynb_checkpoints/
+
+# === Notas personales de estudio (no forman parte del entregable) ===
+docs/anotaciones.md
