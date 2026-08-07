@@ -16,6 +16,7 @@ lo pasa como contexto a un LLM para que redacte la respuesta.
 - [Instalación paso a paso](#instalación-paso-a-paso)
 - [Configuración](#configuración)
 - [Ejecución](#ejecución)
+- [Ejecución con Docker](#ejecución-con-docker)
 - [Uso de la API](#uso-de-la-api)
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Tests](#tests)
@@ -293,6 +294,50 @@ INFO:     Application startup complete.
 
 ---
 
+## Ejecución con Docker
+
+Alternativa a la instalación local: no requiere tener Python 3.12 ni instalar dependencias.
+Sí requiere Docker y una API key de Cohere.
+
+### 1. Construir la imagen
+
+```bash
+docker build -t pichallenge-rag .
+```
+
+### 2. Levantar el contenedor
+
+```bash
+docker run --rm -p 8000:8000 --env-file .env pichallenge-rag
+```
+
+La API queda en `http://127.0.0.1:8000`, igual que en la ejecución local.
+
+Si no se quiere usar un archivo `.env`, la clave puede pasarse directamente:
+
+```bash
+docker run --rm -p 8000:8000 -e COHERE_API_KEY=tu-api-key-aca pichallenge-rag
+```
+
+> 🔑 La API key se pasa **en tiempo de ejecución**, nunca se hornea en la imagen. El
+> archivo `.env` está excluido en `.dockerignore`, así que no llega al contenedor aunque
+> exista en el directorio del proyecto.
+
+### Detalles de la imagen
+
+| Decisión | Motivo |
+|---|---|
+| Build en dos etapas | Las dependencias se compilan en una etapa intermedia; a la imagen final solo se copia el ambiente virtual ya armado, sin caché de pip ni herramientas de build |
+| Usuario `appuser` (uid 1000) | El proceso no corre como root: si se ve comprometido, no es administrador del contenedor |
+| `HEALTHCHECK` sobre `/health` | Docker reporta el contenedor como `healthy` recién cuando la API responde. El `start-period` es amplio porque el arranque indexa el documento contra la API de embeddings |
+| `--host 0.0.0.0` | Con el default (`127.0.0.1`) uvicorn solo escucharía dentro del contenedor y el puerto publicado no respondería |
+| `COPY requirements.txt` primero | Mientras las dependencias no cambien, Docker reutiliza la capa de instalación, que es la parte lenta del build |
+
+La imagen pesa unos 820 MB, dominados por ChromaDB y sus dependencias de cómputo numérico
+(ONNX Runtime).
+
+---
+
 ## Uso de la API
 
 | Método | Ruta | Descripción |
@@ -376,6 +421,8 @@ PIChallengeAI/
 ├── tests/
 ├── postman/              Colección para probar la API.
 ├── .env.example          Plantilla de configuración.
+├── .dockerignore         Excluye el .env y el entorno local de la imagen.
+├── Dockerfile            Build en dos etapas para levantar la API en un contenedor.
 ├── requirements.txt      Dependencias con versión fijada.
 └── README.md
 ```
@@ -432,6 +479,53 @@ pip install pip-system-certs
 No está en `requirements.txt` porque es una particularidad del entorno local, no una
 dependencia del proyecto. La alternativa es desactivar el escaneo HTTPS del antivirus.
 
+### `CERTIFICATE_VERIFY_FAILED` usando Docker
+
+**Docker no evita este problema.** El contenedor tiene su propio almacén de certificados,
+que tampoco contiene la CA del antivirus o del proxy. El problema aparece en dos momentos
+distintos y cada uno se resuelve por separado.
+
+Primero hay que exportar la CA que está interceptando. Para identificarla:
+
+```bash
+echo | openssl s_client -connect pypi.org:443 -servername pypi.org 2>/dev/null \
+  | openssl x509 -noout -issuer
+```
+
+En Windows, exportarla desde el almacén del sistema:
+
+```powershell
+$cert = Get-ChildItem Cert:\LocalMachine\Root |
+        Where-Object { $_.Subject -like "*Avast*" } | Select-Object -First 1
+$b64 = [Convert]::ToBase64String($cert.RawData, 'InsertLineBreaks')
+"-----BEGIN CERTIFICATE-----`n$b64`n-----END CERTIFICATE-----" |
+        Set-Content -Path ca.crt -Encoding ascii
+```
+
+**1. Durante el build**, al bajar las dependencias de PyPI. El `Dockerfile` acepta un
+argumento opcional para inyectar la CA:
+
+```bash
+docker build -t pichallenge-rag --build-arg EXTRA_CA_CERT="$(cat ca.crt)" .
+```
+
+**2. Durante la ejecución**, al llamar a la API de Cohere. Se resuelve montando un bundle
+que combine los certificados estándar con la CA interceptora, y apuntando `SSL_CERT_FILE`
+a ese archivo:
+
+```bash
+cat "$(python -c 'import certifi; print(certifi.where())')" ca.crt > ca-bundle.pem
+
+docker run --rm -p 8000:8000 --env-file .env \
+  -v "$(pwd)/ca-bundle.pem:/certs/ca-bundle.pem:ro" \
+  -e SSL_CERT_FILE=/certs/ca-bundle.pem \
+  pichallenge-rag
+```
+
+En un entorno sin interceptación TLS nada de esto hace falta: el `build` y el `run` de la
+sección [Ejecución con Docker](#ejecución-con-docker) funcionan tal cual. La alternativa,
+como en el caso local, es desactivar el escaneo HTTPS del antivirus.
+
 ---
 
 ## Estado del proyecto
@@ -445,5 +539,5 @@ dependencia del proyecto. La alternativa es desactivar el escaneo HTTPS del anti
 - [x] Tests de dominio y aplicación (unitarios + integración)
 - [x] API FastAPI
 - [x] Tests de la API
-- [ ] Dockerfile
+- [x] Dockerfile
 - [ ] Colección de Postman
